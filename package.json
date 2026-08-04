@@ -8,7 +8,7 @@
     "dist/index.*"
   ],
   "scripts": {
-    "build": "npm run lint && tsc",
+    "build": "npm run lint && rm -rf dist && tsc",
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "pack": "npm run build && npm pack",
