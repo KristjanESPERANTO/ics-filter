@@ -6,8 +6,9 @@ export const icsFilter = (content: string, now: Date, max?: Date): string => {
     console.log("max:", max);
   }
 
-  const nowStr: string = toICSDateString(now);
-  const maxStr: string | undefined = max ? toICSDateString(max) : undefined;
+  const dayInMilliseconds = 24 * 60 * 60 * 1000;
+  const oldestDateStr: string = toICSDateString(new Date(now.getTime() - dayInMilliseconds)).slice(0, 8);
+  const newestDateStr: string | undefined = max ? toICSDateString(new Date(max.getTime() + dayInMilliseconds)).slice(0, 8) : undefined;
   const unfoldedContent: string = content.replace(/\r?\n[ \t]/g, "");
 
   let result: string = "";
@@ -120,9 +121,9 @@ export const icsFilter = (content: string, now: Date, max?: Date): string => {
         return;
       }
 
-      if (maxStr && dtStart > maxStr) {
+      if (newestDateStr && getICSDatePart(value) > newestDateStr) {
         if (isDevRun) {
-          console.log("DTSTART greater than max:", dtStart, maxStr, "-->", line);
+          console.log("DTSTART greater than max:", dtStart, newestDateStr, "-->", line);
         }
         keep = false;
       }
@@ -137,10 +138,10 @@ export const icsFilter = (content: string, now: Date, max?: Date): string => {
         console.log("DTEND:", dtEnd, "-->", line);
       }
 
-      if (dtEnd && dtEnd < nowStr) {
+      if (dtEnd && getICSDatePart(value) < oldestDateStr) {
         if (hasRrule && rruleKeep) {
           if (isDevRun) {
-            console.log("DTEND lower than now, but rrule keeps it:", dtEnd, nowStr, "-->", line);
+            console.log("DTEND lower than now, but rrule keeps it:", dtEnd, oldestDateStr, "-->", line);
           }
 
           return;
@@ -148,7 +149,7 @@ export const icsFilter = (content: string, now: Date, max?: Date): string => {
 
         if (hasRdate && rdateKeep) {
           if (isDevRun) {
-            console.log("DTEND lower than now, but rdate keeps it:", dtEnd, nowStr, "-->", line);
+            console.log("DTEND lower than now, but rdate keeps it:", dtEnd, oldestDateStr, "-->", line);
           }
 
           return;
@@ -156,14 +157,14 @@ export const icsFilter = (content: string, now: Date, max?: Date): string => {
 
         if (hasKeptRecurrenceId) {
           if (isDevRun) {
-            console.log("DTEND lower than now, but recurrenceId keeps it:", dtEnd, nowStr, "-->", line);
+            console.log("DTEND lower than now, but recurrenceId keeps it:", dtEnd, oldestDateStr, "-->", line);
           }
 
           return;
         }
 
         if (isDevRun) {
-          console.log("DTEND lower than now, and no rrule or recurrenceId yet:", dtEnd, nowStr, "-->", line);
+          console.log("DTEND lower than now, and no rrule or recurrenceId yet:", dtEnd, oldestDateStr, "-->", line);
         }
         keep = false;
       }
@@ -192,7 +193,7 @@ export const icsFilter = (content: string, now: Date, max?: Date): string => {
         console.log("RRULE UNTIL:", rruleUntil, "-->", line);
       }
 
-      if (rruleUntil && rruleUntil < nowStr) {
+      if (rruleUntil && getICSDatePart(untilRaw) < oldestDateStr) {
         keep = false;
         rruleKeep = false;
       }
@@ -214,7 +215,11 @@ export const icsFilter = (content: string, now: Date, max?: Date): string => {
           continue;
         }
 
-        if (date >= nowStr && (!maxStr || date <= maxStr)) {
+        const dateValue = dateRaw.trim();
+        const datePart = getICSDatePart(dateValue);
+        const inRange = datePart >= oldestDateStr && (!newestDateStr || datePart <= newestDateStr);
+
+        if (inRange) {
           rdateKeep = true;
           keep = true;
 
@@ -248,9 +253,9 @@ export const icsFilter = (content: string, now: Date, max?: Date): string => {
         return;
       }
 
-      if (maxStr && dtRecurrence > maxStr) {
+      if (newestDateStr && getICSDatePart(value) > newestDateStr) {
         if (isDevRun) {
-          console.log("RECURRENCE-ID greater than max:", dtRecurrence, maxStr, "-->", line);
+          console.log("RECURRENCE-ID greater than max:", dtRecurrence, newestDateStr, "-->", line);
         }
         keep = false;
         hasKeptRecurrenceId = false;
@@ -297,6 +302,10 @@ const normalizeICSDateStr = (value: string | null | undefined): string | null =>
   }
 
   return normalizedValue;
+};
+
+const getICSDatePart = (value: string | null | undefined): string => {
+  return value?.slice(0, 8) ?? "";
 };
 
 const toICSDateString = (date: Date): string => {
